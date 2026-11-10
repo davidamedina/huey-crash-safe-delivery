@@ -1,8 +1,4 @@
-"""Start, kill and observe real huey consumers.
-
-Every consumer runs in its own session/process group, so a kill takes out
-the master *and* its process workers together, which looks like a host dying.
-"""
+"""Start and kill huey consumers, read the event log."""
 import importlib
 import os
 import random
@@ -14,8 +10,8 @@ import time
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SOLUTION_PY = os.environ.get('SOLUTION_PYTHON', sys.executable)    # venv with the model's huey
-LEGACY_PY = os.environ.get('LEGACY_PYTHON', '/opt/huey354/bin/python')  # stock 3.5.4
+SOLUTION_PY = os.environ.get('SOLUTION_PYTHON', sys.executable)
+LEGACY_PY = os.environ.get('LEGACY_PYTHON', '/opt/huey354/bin/python')
 
 
 class Env:
@@ -40,14 +36,12 @@ class Env:
     def events_path(self):
         return os.path.join(self.workdir, 'events.db')
 
-    # -- in-process client (the "producer" side) ---------------------------
     def app(self):
         os.environ.update(self.vars)
         sys.path.insert(0, HERE)
         sys.modules.pop('vapp', None)
         return importlib.import_module('vapp')
 
-    # -- consumers ----------------------------------------------------------
     def start_consumer(self, workers=4, kind='process', python=None,
                        prefix=(), periodic=False):
         env = dict(os.environ, **self.vars)
@@ -59,7 +53,7 @@ class Env:
                               '--max-delay', '0.2',
                               '--health-check-interval', '1']
         if not periodic:
-            cmd.append('--no-periodic')                       # no periodic tasks
+            cmd.append('--no-periodic')
         proc = subprocess.Popen(cmd, env=env, cwd=self.workdir,
                                 start_new_session=True,
                                 stdout=subprocess.DEVNULL,
@@ -86,7 +80,7 @@ class Env:
                 p.wait(timeout=60)
 
     def chaos(self, procs_factory, duration, every=(1.0, 3.0), seed=0):
-        """Repeatedly SIGKILL a random consumer group and replace it."""
+        """Kill a random consumer every few seconds and start a new one."""
         rnd = random.Random(seed)
         procs = procs_factory()
         end = time.time() + duration
@@ -97,7 +91,6 @@ class Env:
             procs[victim] = self.start_consumer()
         return procs
 
-    # -- observations -------------------------------------------------------
     def events(self, kind=None):
         with sqlite3.connect(self.events_path, timeout=30) as conn:
             q = 'SELECT task_id, kind, nonce, data, pid, ts FROM ev'

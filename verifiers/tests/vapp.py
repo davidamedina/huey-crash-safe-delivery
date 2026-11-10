@@ -1,9 +1,4 @@
-"""Huey app loaded by every consumer the verifiers start.
-
-Configured only through environment variables so the same module works for
-each storage and for the stock huey 3.5.4 venv (VAPP_LEGACY=1). Tasks record
-what they do in a separate SQLite event log that huey knows nothing about.
-"""
+"""Test tasks. Set up by env vars. Tasks write to their own event log."""
 import os
 import signal
 import sqlite3
@@ -12,7 +7,7 @@ import uuid
 
 from huey import FileHuey, PriorityRedisHuey, RedisHuey, SqliteHuey, crontab
 
-STORAGE = os.environ['VAPP_STORAGE']        # sqlite | file | redis | priority_redis
+STORAGE = os.environ['VAPP_STORAGE']  # sqlite, file, redis, priority_redis
 WORKDIR = os.environ['VAPP_WORKDIR']
 EVENTS = os.path.join(WORKDIR, 'events.db')
 
@@ -49,7 +44,7 @@ def log(task_id, kind, nonce=None, data=None):
 
 
 def _die():
-    # Kill this worker process outright (no cleanup, no exception handlers).
+    # hard kill, like a crash
     os.kill(os.getpid(), signal.SIGKILL)
 
 
@@ -69,13 +64,13 @@ def work(n, sleep=0, task=None):
 
 @huey.task(context=True)
 def step(prev, sleep=0, task=None):
-    # Pipeline child: records the parent's nonce it was handed.
+    # pipeline step, logs the parent's nonce
     return _run(task, prev['value'] + 1, sleep, parent_nonce=prev['nonce'])
 
 
 @huey.task(context=True)
 def collect(results, task=None):
-    # Chord callback: records every member nonce it was handed.
+    # chord callback, logs all member nonces
     nonce = uuid.uuid4().hex
     log(task.id, 'start', nonce, ','.join(sorted(r['nonce'] for r in results)))
     return {'nonce': nonce, 'value': sum(r['value'] for r in results)}
@@ -116,7 +111,7 @@ def hold_lock(hold, die_inside=False, task=None):
 
 @huey.task()
 def noop():
-    # Throughput probe (Redis only): one INCR, no event log.
+    # for the speed test (redis only)
     import redis
     redis.Redis.from_url(os.environ['VAPP_REDIS_URL']).incr('verifier:done')
 

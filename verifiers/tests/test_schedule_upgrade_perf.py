@@ -1,4 +1,4 @@
-"""V11-V14: scheduler under kills, periodic tasks, in-place upgrade, throughput."""
+"""V11-V14: scheduled tasks, periodic tasks, upgrade, speed."""
 import os
 import random
 import statistics
@@ -22,7 +22,7 @@ def test_v11_delayed_tasks_survive_scheduler_kills(env):
     starts = env.starts_by_task()
     for r in rs:
         val = r.get(blocking=True, timeout=120, preserve=True)
-        assert starts[r.id][-1]['nonce'] == val['nonce']   # same rule as V7
+        assert starts[r.id][-1]['nonce'] == val['nonce']
     starts = env.starts_by_task()
     assert sum(len(starts[r.id]) - 1 for r in rs) <= env.kills * 4
 
@@ -31,7 +31,7 @@ def test_v12_periodic_runs_once_per_minute_despite_kills(env):
     env.app()
     proc = env.start_consumer(workers=2, periodic=True)
     for _ in range(3):
-        time.sleep(60 - time.time() % 60 + 0.3)   # 0.3 s past the boundary
+        time.sleep(60 - time.time() % 60 + 0.3)  # just after the minute
         env.kill(proc)
         proc = env.start_consumer(workers=2, periodic=True)
     time.sleep(env.vt + 10)
@@ -44,14 +44,14 @@ def test_v12_periodic_runs_once_per_minute_despite_kills(env):
 def test_v13_state_written_by_354_is_drained(make_env):
     env = make_env(VAPP_LEGACY='1')
     import subprocess
-    # Producer AND an aborted consumer run on stock 3.5.4.
+    # add tasks with old huey 3.5.4
     script = ('import vapp\n'
               'q = [vapp.work(i).id for i in range(50)]\n'
               's = [vapp.work.schedule((i,), delay=3).id for i in range(20)]\n'
               'print(",".join(q + s))\n')
     ids = subprocess.check_output([LEGACY_PY, '-c', script],
                                   env=dict(os.environ, **env.vars)).decode().strip().split(',')
-    # Now the new code, with the new options, against the same storage.
+    # then run the new consumer on the same data
     env.vars.pop('VAPP_LEGACY')
     env.start_consumer(workers=4)
     assert env.wait_for(lambda: all(env.starts_by_task()[i] for i in ids), 60)

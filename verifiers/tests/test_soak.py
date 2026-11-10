@@ -1,10 +1,7 @@
-"""V7: random SIGKILLs over pipelines and chords.
+"""V7: kill consumers at random while pipelines and chords run.
 
-Invariant (b) is the heart of it: for every task id, the nonce in the stored
-result must belong to the *last* execution that started. If anything started
-after the result was stored, it either overwrote the result (different nonce
-than an earlier finished run is fine only if that run never stored) or died,
-leaving an older nonce behind - both are violations of "never runs again".
+Main rule: the saved result must come from the last run that started.
+Otherwise the task ran again after its result was saved.
 """
 import os
 
@@ -26,7 +23,7 @@ def test_v7_random_kills_keep_results_and_callbacks_exact(env):
     procs = env.chaos(start, duration=45, seed=SEED)
     del procs
 
-    # (a) everything finishes
+    # all tasks finish
     pipe_vals = [p.get(blocking=True, timeout=120, preserve=True) for p in pipes]
     chord_vals = [c.get(blocking=True, timeout=120, preserve=True) for c in chords]
     starts = env.starts_by_task()
@@ -40,18 +37,18 @@ def test_v7_random_kills_keep_results_and_callbacks_exact(env):
     for group_res, values in zip(pipes, pipe_vals):
         results = list(group_res)
         for res, val in zip(results, values):
-            check_last_started(res, val)                       # (b)
-        for parent_val, child in zip(values, results[1:]):     # (c)
+            check_last_started(res, val)
+        for parent_val, child in zip(values, results[1:]):  # child got parent's result
             assert all(s['data'] == parent_val['nonce'] for s in starts[child.id])
 
     for c, val in zip(chords, chord_vals):
         cb_runs = starts[c.callback.id]
-        assert len(cb_runs) == 1, 'chord callback started %d times' % len(cb_runs)   # (d)
+        assert len(cb_runs) == 1, 'chord callback started %d times' % len(cb_runs)
         members = sorted(m['nonce'] for m in c.results.get(preserve=True))
         assert cb_runs[0]['data'] == ','.join(members)
         for m in c.results:
             check_last_started(m, m.get(preserve=True))
 
-    # (e) re-runs are bounded by what the kills could have interrupted
+    # no more re-runs than the kills can explain
     extra = sum(len(v) - 1 for v in starts.values())
     assert extra <= env.kills * WORKERS

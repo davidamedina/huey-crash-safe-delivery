@@ -1,4 +1,4 @@
-"""V2-V5: crashed work comes back; healthy long work is not stolen."""
+"""V2-V6: killed tasks run again, long tasks are not stolen."""
 import signal
 import time
 
@@ -31,7 +31,7 @@ def test_v3_orphan_recovered_after_full_outage(env):
     r = app.work(3, sleep=10)
     assert env.wait_for(lambda: env.starts_by_task()[r.id], 30)
     env.kill(c1)
-    time.sleep(20)                       # nobody is running
+    time.sleep(20)  # all consumers down
     t_up = time.time()
     env.start_consumer(workers=1)
     assert env.wait_for(lambda: _first_start_after(env, r.id, t_up), env.vt + SLACK + 1)
@@ -45,7 +45,7 @@ def test_v4_sigterm_does_not_lose_running_task(env):
     assert env.wait_for(lambda: env.starts_by_task()[r.id], 30)
     env.kill(c1, signal.SIGTERM)
     env.start_consumer(workers=1)
-    # Either it finished before exit or it runs again; it must not vanish.
+    # must finish, not disappear
     assert r.get(blocking=True, timeout=env.vt + SLACK + 10, preserve=True)['value'] == 5
 
 
@@ -54,7 +54,7 @@ def _long_task_runs_once(env, prefix=()):
     env.start_consumer(workers=1)
     r = app.work(9, sleep=3 * env.vt)
     assert env.wait_for(lambda: env.starts_by_task()[r.id], 30)
-    env.start_consumer(workers=2, prefix=prefix)     # idle peer, ready to steal
+    env.start_consumer(workers=2, prefix=prefix)  # second consumer
     assert r.get(blocking=True, timeout=60, preserve=True)['value'] == 9
     time.sleep(env.vt + SLACK)
     assert len(env.starts_by_task()[r.id]) == 1

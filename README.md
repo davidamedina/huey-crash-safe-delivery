@@ -1,6 +1,6 @@
 # Crash-safe task delivery for huey
 
-A long-horizon backend task: make the [huey](https://github.com/coleifer/huey) task queue keep tasks safe when a consumer crashes. Today it loses them. This repo holds the task prompt, the reasoning behind it, and a verifier suite written in Python/pytest.
+Backend long-term task: ensure the [huey](https://github.com/coleifer/huey) task queue does not lose tasks if a consumer crashes; currently, it does. This repository contains the task prompt, the rationale for the task, and a set of verifiers written in Python/pytest.
 
 | Field | Where |
 |---|---|

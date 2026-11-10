@@ -1,4 +1,4 @@
-"""V1: the thing still works as a task queue."""
+"""V1: basic tasks still work."""
 from huey import group
 from huey.exceptions import TaskException
 
@@ -19,8 +19,8 @@ def test_tasks_pipelines_chords_and_errors_complete(env):
 def test_ordinary_failure_still_surfaces(env):
     app = env.app()
     env.start_consumer(workers=2)
-    # A plain exception (not a crash) behaves exactly as in 3.5.4.
-    r = app.huey.enqueue(app.step.s({'nonce': 'x'}))   # KeyError: 'value'
+    # normal errors work as before
+    r = app.huey.enqueue(app.step.s({'nonce': 'x'}))   # raises KeyError
     try:
         r.get(blocking=True, timeout=30)
     except TaskException:
