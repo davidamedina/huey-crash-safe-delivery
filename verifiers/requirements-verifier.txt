@@ -1,0 +1,7 @@
+# Exact pins for the verifier venv. Before shipping, lock transitive deps too:
+#   pip-compile --generate-hashes requirements-verifier.txt -o requirements-verifier.lock
+pytest==9.2.0
+redis==8.1.0
+# Build backend for installing the model's huey offline (--no-build-isolation).
+setuptools==84.2.1
+wheel==0.48.0
